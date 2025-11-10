@@ -7,7 +7,12 @@ const gameState = {
     ended: false,
     currentInteractable: null,
     moveSpeed: 0.08,
-    lookSensitivity: 0.002
+    lookSensitivity: 0.002,
+    endingAnimation: {
+        active: false,
+        type: null,
+        progress: 0
+    }
 };
 
 // ========== MOVEMENT STATE ==========
@@ -394,56 +399,275 @@ function interact() {
 
     const type = gameState.currentInteractable.type;
     gameState.ended = true;
+    gameState.endingAnimation.active = true;
+    gameState.endingAnimation.type = type;
+    gameState.endingAnimation.progress = 0;
 
-    // Trigger ending based on interaction type
-    setTimeout(() => {
-        if (type === 'mirror') {
-            showEnding('mirror');
-        } else if (type === 'cat') {
-            showEnding('cat');
-        } else if (type === 'door') {
-            showEnding('door');
-        }
-    }, 500);
-}
+    // Hide interaction prompt
+    document.getElementById('interaction-prompt').style.display = 'none';
 
-function showEnding(type) {
-    const endingScreen = document.getElementById('ending-screen');
-    const endingText = document.getElementById('ending-text');
-
-    let text = '';
-
-    if (type === 'mirror') {
-        text = `You reach out and touch the cold glass.<br><br>
-        Your reflection ripples like water...<br><br>
-        And pulls you through.<br><br>
-        You fall into darkness, only to find yourself standing in the same room again.<br><br>
-        <span class="glitch">Did you ever really wake up?</span>`;
-    } else if (type === 'cat') {
-        text = `You move closer to the cat.<br><br>
-        Its three eyes fix on you, unblinking.<br><br>
-        Suddenly, it lunges—<br>
-        A sharp hiss, claws extended.<br><br>
-        You jolt awake in bed.<br><br>
-        But when you look around...<br><br>
-        <span class="glitch">The room looks exactly the same.</span>`;
-    } else if (type === 'door') {
-        text = `Each step echoes louder than the last.<br><br>
-        Your heartbeat syncs with your footsteps.<br><br>
-        You reach for the handle...<br><br>
-        The door opens.<br><br>
-        Blinding white light floods in.<br><br>
-        Silence.<br><br>
-        <span class="glitch">...But are you really awake?</span>`;
-    }
-
-    endingText.innerHTML = text;
-    endingScreen.style.display = 'flex';
-
-    // Release pointer lock
+    // Release pointer lock for ending
     if (document.pointerLockElement) {
         document.exitPointerLock();
     }
+}
+
+// ========== VISUAL ENDING ANIMATIONS ==========
+
+function animateMirrorEnding(progress) {
+    // Progress goes from 0 to 1
+
+    // Phase 1 (0-0.3): Move camera toward mirror, ripple effect
+    if (progress < 0.3) {
+        const phase = progress / 0.3;
+
+        // Move camera toward mirror
+        camera.position.x = THREE.MathUtils.lerp(camera.position.x, -4.5, phase * 0.05);
+        camera.position.z = THREE.MathUtils.lerp(camera.position.z, 0, phase * 0.05);
+
+        // Make mirror ripple
+        const mirrorSurface = mirror.children[1]; // The mirror plane
+        const positions = mirrorSurface.geometry.attributes.position;
+        if (!positions) {
+            // Add segments to mirror for ripple effect
+            const newGeo = new THREE.PlaneGeometry(2.2, 2.7, 30, 30);
+            mirrorSurface.geometry = newGeo;
+        }
+
+        // Animate ripple
+        const rippleGeo = mirrorSurface.geometry;
+        const pos = rippleGeo.attributes.position;
+        if (pos) {
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                const dist = Math.sqrt(x * x + y * y);
+                const ripple = Math.sin(dist * 3 - progress * 20) * 0.2 * phase;
+                pos.setZ(i, ripple);
+            }
+            pos.needsUpdate = true;
+            rippleGeo.computeVertexNormals();
+        }
+
+        // Mirror glows brighter
+        mirrorLight.intensity = 0.8 + phase * 2;
+    }
+
+    // Phase 2 (0.3-0.6): Screen distortion, pull into darkness
+    else if (progress < 0.6) {
+        const phase = (progress - 0.3) / 0.3;
+
+        // Screen shake
+        camera.rotation.z = Math.sin(phase * 50) * 0.1 * (1 - phase);
+
+        // Fade to black
+        scene.background = new THREE.Color(
+            Math.floor(0x0a * (1 - phase)),
+            Math.floor(0x0a * (1 - phase)),
+            Math.floor(0x0a * (1 - phase))
+        );
+        renderer.toneMappingExposure = 0.3 * (1 - phase);
+    }
+
+    // Phase 3 (0.6-1.0): Respawn in same room
+    else {
+        const phase = (progress - 0.6) / 0.4;
+
+        if (phase < 0.01) {
+            // Reset position
+            camera.position.set(0, 1.6, 3);
+            camera.rotation.z = 0;
+        }
+
+        // Fade back in
+        const fadeIn = Math.min(phase * 2, 1);
+        scene.background = new THREE.Color(
+            Math.floor(0x0a * fadeIn),
+            Math.floor(0x0a * fadeIn),
+            Math.floor(0x0a * fadeIn)
+        );
+        renderer.toneMappingExposure = 0.3 * fadeIn;
+
+        // Show questioning text at the end
+        if (phase > 0.8) {
+            showSubtleQuestion("Am I... awake?");
+        }
+    }
+}
+
+function animateCatEnding(progress) {
+    // Phase 1 (0-0.4): Cat stares, then lunges
+    if (progress < 0.4) {
+        const phase = progress / 0.4;
+
+        // Cat eyes glow brighter
+        cat.children.forEach(child => {
+            if (child instanceof THREE.PointLight) {
+                child.intensity = 0.5 + phase * 3;
+            }
+            if (child instanceof THREE.Mesh && child.material.color && child.material.color.g > 0.5) {
+                child.material.emissive = new THREE.Color(0x00ff88);
+                child.material.emissiveIntensity = phase * 2;
+            }
+        });
+
+        // Cat slowly moves toward camera at first
+        if (phase < 0.7) {
+            const targetPos = camera.position.clone();
+            cat.position.x = THREE.MathUtils.lerp(cat.position.x, targetPos.x, phase * 0.02);
+            cat.position.z = THREE.MathUtils.lerp(cat.position.z, targetPos.z, phase * 0.02);
+            cat.lookAt(camera.position);
+        }
+        // Then LUNGES
+        else {
+            const lungePhase = (phase - 0.7) / 0.3;
+            const targetPos = camera.position.clone();
+            targetPos.y = 1.6;
+            cat.position.lerp(targetPos, lungePhase * 0.5);
+            cat.scale.setScalar(1 + lungePhase * 10);
+        }
+    }
+
+    // Phase 2 (0.4-0.6): Flash/shock effect
+    else if (progress < 0.6) {
+        const phase = (progress - 0.4) / 0.2;
+
+        // Red flash
+        scene.background = new THREE.Color(
+            Math.floor(0xFF * (1 - phase)),
+            0,
+            0
+        );
+
+        // Screen shake violently
+        camera.rotation.z = Math.sin(phase * 100) * 0.3;
+        camera.rotation.x = Math.sin(phase * 80) * 0.2;
+
+        // Hide cat
+        if (phase > 0.5) {
+            cat.visible = false;
+        }
+    }
+
+    // Phase 3 (0.6-1.0): Fade to black, then respawn
+    else {
+        const phase = (progress - 0.6) / 0.4;
+
+        if (phase < 0.3) {
+            // Fade to black
+            const fadeOut = phase / 0.3;
+            scene.background = new THREE.Color(0, 0, 0);
+            renderer.toneMappingExposure = 0.3 * (1 - fadeOut);
+            camera.rotation.set(0, 0, 0);
+        } else {
+            // Reset and fade back in
+            if (phase < 0.35) {
+                camera.position.set(0, 1.6, 3);
+                camera.rotation.set(0, 0, 0);
+                cat.position.set(3.5, 0, 3.5);
+                cat.scale.setScalar(1);
+                cat.visible = true;
+            }
+
+            const fadeIn = (phase - 0.3) / 0.7;
+            scene.background = new THREE.Color(
+                Math.floor(0x0a * fadeIn),
+                Math.floor(0x0a * fadeIn),
+                Math.floor(0x0a * fadeIn)
+            );
+            renderer.toneMappingExposure = 0.3 * fadeIn;
+
+            if (phase > 0.8) {
+                showSubtleQuestion("Did I... wake up?");
+            }
+        }
+    }
+}
+
+function animateDoorEnding(progress) {
+    // Phase 1 (0-0.4): Door slowly opens
+    if (progress < 0.4) {
+        const phase = progress / 0.4;
+
+        // Rotate door open
+        const doorMesh = door.children[1]; // The door itself
+        doorMesh.rotation.y = -phase * Math.PI * 0.7; // Swing open
+
+        // Move camera slightly forward
+        camera.position.z = THREE.MathUtils.lerp(camera.position.z, -3.5, phase * 0.1);
+
+        // Door light gets brighter as it opens
+        doorLight.intensity = 1.2 + phase * 10;
+    }
+
+    // Phase 2 (0.4-0.7): Blinding white light floods in
+    else if (progress < 0.7) {
+        const phase = (progress - 0.4) / 0.3;
+
+        // Increase light intensity dramatically
+        doorLight.intensity = 11.2 + phase * 50;
+        doorLight.distance = 8 + phase * 30;
+
+        // Fade scene to white
+        const whiteAmount = phase * 255;
+        scene.background = new THREE.Color(
+            Math.floor(whiteAmount),
+            Math.floor(whiteAmount),
+            Math.floor(whiteAmount)
+        );
+
+        // Increase exposure
+        renderer.toneMappingExposure = 0.3 + phase * 3;
+
+        // Everything fades to white
+        scene.fog.color = new THREE.Color(
+            Math.floor(0x0b + whiteAmount),
+            Math.floor(0x0b + whiteAmount),
+            Math.floor(0x0b + whiteAmount)
+        );
+    }
+
+    // Phase 3 (0.7-1.0): Pure white, then questioning
+    else {
+        const phase = (progress - 0.7) / 0.3;
+
+        if (phase < 0.3) {
+            // Stay in pure white
+            scene.background = new THREE.Color(0xffffff);
+            renderer.toneMappingExposure = 3;
+        } else {
+            // Slowly fade back to dark
+            const fadeBack = (phase - 0.3) / 0.7;
+            const darkness = 1 - fadeBack;
+            scene.background = new THREE.Color(
+                Math.floor(0xff * darkness),
+                Math.floor(0xff * darkness),
+                Math.floor(0xff * darkness)
+            );
+            renderer.toneMappingExposure = 3 * darkness + 0.3 * fadeBack;
+            scene.fog.color = new THREE.Color(0x0b0b0b);
+
+            // Reset
+            if (fadeBack > 0.5 && fadeBack < 0.55) {
+                camera.position.set(0, 1.6, 3);
+                door.children[1].rotation.y = 0;
+                doorLight.intensity = 1.2;
+                doorLight.distance = 8;
+            }
+
+            if (phase > 0.8) {
+                showSubtleQuestion("...But am I really awake?");
+            }
+        }
+    }
+}
+
+function showSubtleQuestion(text) {
+    const endingScreen = document.getElementById('ending-screen');
+    const endingText = document.getElementById('ending-text');
+
+    endingText.innerHTML = `<span class="glitch">${text}</span>`;
+    endingScreen.style.display = 'flex';
 }
 
 // ========== EVENT LISTENERS ==========
@@ -572,6 +796,26 @@ function animate() {
     const delta = clock.getDelta();
     time += delta;
 
+    // Handle ending animations
+    if (gameState.endingAnimation.active) {
+        gameState.endingAnimation.progress += delta * 0.15; // Progress speed
+
+        if (gameState.endingAnimation.type === 'mirror') {
+            animateMirrorEnding(gameState.endingAnimation.progress);
+        } else if (gameState.endingAnimation.type === 'cat') {
+            animateCatEnding(gameState.endingAnimation.progress);
+        } else if (gameState.endingAnimation.type === 'door') {
+            animateDoorEnding(gameState.endingAnimation.progress);
+        }
+
+        // Stop animation after completion (progress > 1)
+        if (gameState.endingAnimation.progress > 1) {
+            // Keep it frozen at the end
+            gameState.endingAnimation.progress = 1;
+        }
+    }
+
+    // Normal gameplay
     if (gameState.started && !gameState.ended) {
         updateMovement(delta);
         checkInteractions();
@@ -594,7 +838,7 @@ function animate() {
         // Cat eye glow pulse
         if (cat.visible) {
             cat.children.forEach(child => {
-                if (child instanceof THREE.Mesh && child.material.color.g > 0.5) {
+                if (child instanceof THREE.Mesh && child.material.color && child.material.color.g > 0.5) {
                     child.material.opacity = 0.9 + Math.sin(time * 3) * 0.1;
                 }
             });
