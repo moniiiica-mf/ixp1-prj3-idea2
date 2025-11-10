@@ -1,0 +1,22 @@
+{
+  "name": "trapped-in-a-dream",
+  "version": "1.0.0",
+  "description": "An immersive 3D horror experience - trapped in a nightmare you can't wake up from",
+  "main": "main.js",
+  "scripts": {
+    "start": "npx http-server -p 8000",
+    "dev": "npx http-server -p 8000 -o"
+  },
+  "keywords": [
+    "three.js",
+    "horror",
+    "interactive",
+    "3d",
+    "game",
+    "webgl",
+    "nightmare"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module"
+}
