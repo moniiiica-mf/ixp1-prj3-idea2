@@ -6,7 +6,7 @@ const gameState = {
     started: false,
     ended: false,
     currentInteractable: null,
-    moveSpeed: 0.08,
+    moveSpeed: 0.04,  // Slower, more deliberate movement
     lookSensitivity: 0.002,
     endingAnimation: {
         active: false,
