@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 // ========== GAME STATE ==========
 const gameState = {
@@ -31,6 +34,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a0a);
 scene.fog = new THREE.FogExp2(0x0b0b0b, 0.15);
 
+// Initialize RectAreaLight uniforms for the door light
+RectAreaLightUniformsLib.init();
+
 // ========== CAMERA ==========
 const camera = new THREE.PerspectiveCamera(
     75,
@@ -53,197 +59,208 @@ document.getElementById('canvas-container').appendChild(renderer.domElement);
 const controls = new PointerLockControls(camera, renderer.domElement);
 
 // ========== LIGHTING ==========
-const ambientLight = new THREE.AmbientLight(0x101010, 0.3);
+// Low ambient light for horror atmosphere
+const ambientLight = new THREE.AmbientLight(0x101010, 0.25);
 scene.add(ambientLight);
 
-// Point light near mirror
-const mirrorLight = new THREE.PointLight(0x888888, 0.8, 10);
-mirrorLight.position.set(-4, 2, 0);
-mirrorLight.castShadow = true;
-scene.add(mirrorLight);
+// Ceiling bulb to ground the scene
+const ceilingBulb = new THREE.PointLight(0x777777, 0.5, 12);
+ceilingBulb.position.set(0, 4.2, 0);
+ceilingBulb.castShadow = true;
+scene.add(ceilingBulb);
 
-// Door light (warm glow through crack)
-const doorLight = new THREE.PointLight(0xe6d7b2, 1.2, 8);
-doorLight.position.set(0, 1, -4.5);
-scene.add(doorLight);
-
-// Subtle breathing light
+// Subtle breathing light that follows player
 const breathingLight = new THREE.PointLight(0x444444, 0.5, 15);
 breathingLight.position.copy(camera.position);
 scene.add(breathingLight);
 
 // ========== ROOM CONSTRUCTION ==========
+let roomMesh; // Store reference for breathing effect
+
 function createRoom() {
     const roomSize = 10;
     const wallHeight = 5;
 
-    // Floor
-    const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
-    const floorMaterial = new THREE.MeshStandardMaterial({
-        color: 0x141414,
+    // Load textures for floor (optional - using simple colors as fallback)
+    const loader = new THREE.TextureLoader();
+
+    // Room as a box with inward-facing normals (real enclosed space)
+    const roomGeo = new THREE.BoxGeometry(roomSize, wallHeight, roomSize);
+    roomGeo.scale(-1, 1, 1); // flip normals inward so we see inside
+
+    const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
         roughness: 0.9,
-        metalness: 0.1
+        metalness: 0.05,
+        side: THREE.FrontSide
     });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+
+    roomMesh = new THREE.Mesh(roomGeo, wallMat);
+    roomMesh.position.y = wallHeight / 2;
+    roomMesh.receiveShadow = true;
+    roomMesh.userData.wall = true; // Tag for breathing effect
+    scene.add(roomMesh);
+
+    // Physical floor plane (darker, receives shadows nicely)
+    const floorGeo = new THREE.PlaneGeometry(roomSize, roomSize);
+    const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x141414,
+        roughness: 0.95,
+        metalness: 0.0
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
-
-    // Ceiling
-    const ceiling = new THREE.Mesh(floorGeometry, floorMaterial);
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = wallHeight;
-    scene.add(ceiling);
-
-    // Walls with slight distortion
-    const wallMaterial = new THREE.MeshStandardMaterial({
-        color: 0x1a1a1a,
-        roughness: 0.8,
-        metalness: 0.2
-    });
-
-    // Back wall
-    const backWall = createDistortedWall(roomSize, wallHeight, wallMaterial);
-    backWall.position.z = -roomSize / 2;
-    backWall.position.y = wallHeight / 2;
-    scene.add(backWall);
-
-    // Front wall
-    const frontWall = createDistortedWall(roomSize, wallHeight, wallMaterial);
-    frontWall.position.z = roomSize / 2;
-    frontWall.position.y = wallHeight / 2;
-    frontWall.rotation.y = Math.PI;
-    scene.add(frontWall);
-
-    // Left wall (with mirror)
-    const leftWall = createDistortedWall(roomSize, wallHeight, wallMaterial);
-    leftWall.position.x = -roomSize / 2;
-    leftWall.position.y = wallHeight / 2;
-    leftWall.rotation.y = Math.PI / 2;
-    scene.add(leftWall);
-
-    // Right wall
-    const rightWall = createDistortedWall(roomSize, wallHeight, wallMaterial);
-    rightWall.position.x = roomSize / 2;
-    rightWall.position.y = wallHeight / 2;
-    rightWall.rotation.y = -Math.PI / 2;
-    scene.add(rightWall);
-}
-
-function createDistortedWall(width, height, material) {
-    const geometry = new THREE.PlaneGeometry(width, height, 20, 20);
-    const positions = geometry.attributes.position;
-
-    // Add subtle distortion to make walls feel "alive"
-    for (let i = 0; i < positions.count; i++) {
-        const x = positions.getX(i);
-        const y = positions.getY(i);
-        const distortion = Math.sin(x * 0.5) * Math.cos(y * 0.5) * 0.05;
-        positions.setZ(i, distortion);
-    }
-
-    geometry.computeVertexNormals();
-    const wall = new THREE.Mesh(geometry, material);
-    wall.receiveShadow = true;
-    wall.castShadow = true;
-    return wall;
 }
 
 // ========== INTERACTIVE OBJECTS ==========
 const interactables = [];
 
-// 1. MIRROR
+// 1. REAL REFLECTIVE MIRROR
 function createMirror() {
     const mirrorGroup = new THREE.Group();
 
-    // Mirror frame
-    const frameGeometry = new THREE.BoxGeometry(2.5, 3, 0.1);
-    const frameMaterial = new THREE.MeshStandardMaterial({
-        color: 0x1a1a1a,
-        roughness: 0.3,
-        metalness: 0.7
-    });
-    const frame = new THREE.Mesh(frameGeometry, frameMaterial);
-    mirrorGroup.add(frame);
+    // Ornate frame using beveled boxes
+    const frame = new THREE.Group();
+    const frameDepth = 0.08;
+    const frameW = 2.4, frameH = 2.9, frameT = 0.15;
 
-    // Mirror surface (reflective)
-    const mirrorGeometry = new THREE.PlaneGeometry(2.2, 2.7);
-    const mirrorMaterial = new THREE.MeshStandardMaterial({
-        color: 0x888888,
-        roughness: 0.1,
-        metalness: 0.9,
-        emissive: 0x222222
+    const frameMat = new THREE.MeshStandardMaterial({
+        color: 0x2b2b2b,
+        roughness: 0.4,
+        metalness: 0.6
     });
-    const mirror = new THREE.Mesh(mirrorGeometry, mirrorMaterial);
-    mirror.position.z = 0.06;
-    mirrorGroup.add(mirror);
 
-    mirrorGroup.position.set(-4.8, 2.5, 0);
-    mirrorGroup.rotation.y = Math.PI / 2;
+    const horiz = new THREE.BoxGeometry(frameW, frameT, frameDepth);
+    const vert = new THREE.BoxGeometry(frameT, frameH, frameDepth);
+
+    const top = new THREE.Mesh(horiz, frameMat);
+    top.position.y = frameH / 2;
+    const bot = new THREE.Mesh(horiz, frameMat);
+    bot.position.y = -frameH / 2;
+    const lef = new THREE.Mesh(vert, frameMat);
+    lef.position.x = -frameW / 2;
+    const rig = new THREE.Mesh(vert, frameMat);
+    rig.position.x = frameW / 2;
+
+    frame.add(top, bot, lef, rig);
+
+    // REAL reflective surface using Reflector
+    const mirrorSurface = new Reflector(new THREE.PlaneGeometry(2.2, 2.6), {
+        clipBias: 0.003,
+        textureWidth: window.innerWidth * window.devicePixelRatio,
+        textureHeight: window.innerHeight * window.devicePixelRatio,
+        color: 0x888888
+    });
+    mirrorSurface.position.z = 0.001;
+
+    const panel = new THREE.Group();
+    panel.add(mirrorSurface, frame);
+
+    // Place on left wall
+    panel.position.set(-4.9, 2.4, 0);
+    panel.rotation.y = Math.PI / 2;
+    mirrorGroup.add(panel);
     scene.add(mirrorGroup);
 
-    // Add to interactables
+    // Local light to enhance reflections
+    const light = new THREE.PointLight(0x888888, 0.8, 8);
+    light.position.set(-4.2, 2.2, 0.8);
+    light.castShadow = true;
+    scene.add(light);
+
     interactables.push({
         object: mirrorGroup,
         type: 'mirror',
         name: 'Mirror',
         prompt: 'Press E to look into the mirror',
-        triggerDistance: 2.5
+        triggerDistance: 2.2
     });
 
     return mirrorGroup;
 }
 
-// 2. CAT
+// 2. REALISTIC CAT (with GLTF loader and sprite fallback)
 function createCat() {
     const catGroup = new THREE.Group();
+    const loader = new GLTFLoader();
 
-    // Cat body (simple geometric representation)
-    const bodyGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.6);
-    const catMaterial = new THREE.MeshStandardMaterial({
-        color: 0x0a0a0a,
-        roughness: 0.8
-    });
-    const body = new THREE.Mesh(bodyGeometry, catMaterial);
-    body.position.y = 0.15;
-    catGroup.add(body);
+    // Try to load a GLTF cat model (with fallback to geometric cat)
+    loader.load(
+        'https://huggingface.co/datasets/opensceneassets/animals/resolve/main/cat_lowpoly.glb',
+        (gltf) => {
+            // Success: use the loaded model
+            const model = gltf.scene;
+            model.traverse(o => {
+                if (o.isMesh) {
+                    o.castShadow = true;
+                    o.receiveShadow = true;
+                }
+            });
+            model.scale.set(0.6, 0.6, 0.6);
+            catGroup.add(model);
 
-    // Cat head
-    const headGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-    const head = new THREE.Mesh(headGeometry, catMaterial);
-    head.position.set(0, 0.25, 0.35);
-    head.scale.set(1, 1, 1.2);
-    catGroup.add(head);
+            // Add eye glow
+            const eyeGlow = new THREE.PointLight(0x00ff88, 0.8, 2.5);
+            eyeGlow.position.set(0, 0.3, 0.4);
+            catGroup.add(eyeGlow);
+        },
+        undefined,
+        (error) => {
+            // Fallback: create geometric cat if model fails to load
+            console.log('GLTF cat failed to load, using fallback geometry');
 
-    // Three glowing eyes
-    const eyeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ff88,
-        transparent: true,
-        opacity: 0.9
-    });
+            // Cat body
+            const bodyGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.6);
+            const catMaterial = new THREE.MeshStandardMaterial({
+                color: 0x0a0a0a,
+                roughness: 0.8
+            });
+            const body = new THREE.Mesh(bodyGeometry, catMaterial);
+            body.position.y = 0.15;
+            body.castShadow = true;
+            catGroup.add(body);
 
-    const eyeGeometry = new THREE.SphereGeometry(0.04, 8, 8);
+            // Cat head
+            const headGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const head = new THREE.Mesh(headGeometry, catMaterial);
+            head.position.set(0, 0.25, 0.35);
+            head.scale.set(1, 1, 1.2);
+            head.castShadow = true;
+            catGroup.add(head);
 
-    const eye1 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    eye1.position.set(-0.08, 0.28, 0.45);
-    catGroup.add(eye1);
+            // Three glowing eyes
+            const eyeMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ff88,
+                transparent: true,
+                opacity: 0.9
+            });
 
-    const eye2 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    eye2.position.set(0.08, 0.28, 0.45);
-    catGroup.add(eye2);
+            const eyeGeometry = new THREE.SphereGeometry(0.04, 8, 8);
 
-    const eye3 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    eye3.position.set(0, 0.35, 0.45);
-    catGroup.add(eye3);
+            const eye1 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye1.position.set(-0.08, 0.28, 0.45);
+            catGroup.add(eye1);
 
-    // Eye glow
-    const eyeLight = new THREE.PointLight(0x00ff88, 0.5, 3);
-    eyeLight.position.set(0, 0.3, 0.5);
-    catGroup.add(eyeLight);
+            const eye2 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye2.position.set(0.08, 0.28, 0.45);
+            catGroup.add(eye2);
 
-    // Hidden at first (appears in corner)
-    catGroup.position.set(3.5, 0, 3.5);
-    catGroup.visible = false; // Start invisible, will appear when player looks around
+            const eye3 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye3.position.set(0, 0.35, 0.45);
+            catGroup.add(eye3);
+
+            // Eye glow light
+            const eyeLight = new THREE.PointLight(0x00ff88, 0.5, 3);
+            eyeLight.position.set(0, 0.3, 0.5);
+            catGroup.add(eyeLight);
+        }
+    );
+
+    // Position in corner (appears after a few seconds)
+    catGroup.position.set(3.2, 0, 3.2);
+    catGroup.visible = false;
     scene.add(catGroup);
 
     interactables.push({
@@ -251,55 +268,85 @@ function createCat() {
         type: 'cat',
         name: 'Cat',
         prompt: 'Press E to approach the cat',
-        triggerDistance: 3
+        triggerDistance: 2.4
     });
 
     return catGroup;
 }
 
-// 3. DOOR
+// 3. REAL PHYSICAL DOOR (with thickness, handle, hinge, light leak)
 function createDoor() {
     const doorGroup = new THREE.Group();
 
-    // Door frame
-    const frameGeometry = new THREE.BoxGeometry(1.5, 2.5, 0.2);
-    const frameMaterial = new THREE.MeshStandardMaterial({
-        color: 0x2a2a2a,
-        roughness: 0.7
+    // Door frame opening in the wall
+    const frameMat = new THREE.MeshStandardMaterial({
+        color: 0x303030,
+        roughness: 0.8
     });
-    const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.6, 0.25), frameMat);
+    frame.receiveShadow = true;
     doorGroup.add(frame);
 
-    // Door itself
-    const doorGeometry = new THREE.BoxGeometry(1.3, 2.3, 0.15);
-    const doorMaterial = new THREE.MeshStandardMaterial({
+    // Door leaf (pivot on left edge for opening animation)
+    const leafGeo = new THREE.BoxGeometry(1.4, 2.4, 0.08);
+    const leafMat = new THREE.MeshStandardMaterial({
         color: 0x1a1a1a,
-        roughness: 0.6
+        roughness: 0.7,
+        metalness: 0.1
     });
-    const door = new THREE.Mesh(doorGeometry, doorMaterial);
-    door.position.z = 0.1;
-    doorGroup.add(door);
+    const leaf = new THREE.Mesh(leafGeo, leafMat);
+    leaf.position.x = -0.7 + 0.04; // Offset to hinge at left edge
+    leaf.castShadow = true;
+    leaf.receiveShadow = true;
+    doorGroup.add(leaf);
 
-    // Light crack at bottom
-    const crackGeometry = new THREE.PlaneGeometry(1.3, 0.05);
-    const crackMaterial = new THREE.MeshBasicMaterial({
-        color: 0xe6d7b2,
-        transparent: true,
-        opacity: 0.8
+    // Store reference to leaf for opening animation
+    doorGroup.userData.leaf = leaf;
+
+    // Door handle (cylindrical, metallic)
+    const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.15, 16);
+    const handleMat = new THREE.MeshStandardMaterial({
+        color: 0xaaaaaa,
+        roughness: 0.3,
+        metalness: 0.8
     });
-    const crack = new THREE.Mesh(crackGeometry, crackMaterial);
-    crack.position.set(0, -1.1, 0.16);
-    doorGroup.add(crack);
+    const handle = new THREE.Mesh(handleGeo, handleMat);
+    handle.rotation.z = Math.PI / 2;
+    handle.position.set(0.45, -0.1, 0.06);
+    handle.castShadow = true;
+    leaf.add(handle);
 
-    doorGroup.position.set(0, 1.25, -4.9);
+    // Thin light crack under door
+    const crack = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.2, 0.03),
+        new THREE.MeshBasicMaterial({
+            color: 0xffe4b5,
+            transparent: true,
+            opacity: 0.9
+        })
+    );
+    crack.position.set(0, -1.15, 0.05);
+    leaf.add(crack);
+
+    // Position door in back wall
+    doorGroup.position.set(0, 1.3, -4.9);
     scene.add(doorGroup);
+
+    // RectAreaLight behind the door (creates realistic light leak)
+    const areaLight = new THREE.RectAreaLight(0xffe4b5, 4.0, 1.2, 2.0);
+    areaLight.position.set(0, 1.2, -5.1);
+    areaLight.lookAt(0, 1.2, -4.9);
+    scene.add(areaLight);
+
+    // Store reference for ending animation
+    doorGroup.userData.areaLight = areaLight;
 
     interactables.push({
         object: doorGroup,
         type: 'door',
         name: 'Door',
         prompt: 'Press E to open the door',
-        triggerDistance: 2
+        triggerDistance: 2.0
     });
 
     return doorGroup;
@@ -417,7 +464,7 @@ function interact() {
 function animateMirrorEnding(progress) {
     // Progress goes from 0 to 1
 
-    // Phase 1 (0-0.3): Move camera toward mirror, ripple effect
+    // Phase 1 (0-0.3): Move camera toward mirror, visual distortion
     if (progress < 0.3) {
         const phase = progress / 0.3;
 
@@ -425,32 +472,14 @@ function animateMirrorEnding(progress) {
         camera.position.x = THREE.MathUtils.lerp(camera.position.x, -4.5, phase * 0.05);
         camera.position.z = THREE.MathUtils.lerp(camera.position.z, 0, phase * 0.05);
 
-        // Make mirror ripple
-        const mirrorSurface = mirror.children[1]; // The mirror plane
-        const positions = mirrorSurface.geometry.attributes.position;
-        if (!positions) {
-            // Add segments to mirror for ripple effect
-            const newGeo = new THREE.PlaneGeometry(2.2, 2.7, 30, 30);
-            mirrorSurface.geometry = newGeo;
-        }
+        // The Reflector doesn't support vertex manipulation, so we'll use visual effects instead
+        // Make the mirror glow and distort the view
 
-        // Animate ripple
-        const rippleGeo = mirrorSurface.geometry;
-        const pos = rippleGeo.attributes.position;
-        if (pos) {
-            for (let i = 0; i < pos.count; i++) {
-                const x = pos.getX(i);
-                const y = pos.getY(i);
-                const dist = Math.sqrt(x * x + y * y);
-                const ripple = Math.sin(dist * 3 - progress * 20) * 0.2 * phase;
-                pos.setZ(i, ripple);
-            }
-            pos.needsUpdate = true;
-            rippleGeo.computeVertexNormals();
-        }
+        // Increase fog density for distortion effect
+        scene.fog.density = 0.15 + phase * 0.1;
 
-        // Mirror glows brighter
-        mirrorLight.intensity = 0.8 + phase * 2;
+        // Camera slight rotation for disorientation
+        camera.rotation.z = Math.sin(progress * 30) * 0.02 * phase;
     }
 
     // Phase 2 (0.3-0.6): Screen distortion, pull into darkness
@@ -477,6 +506,7 @@ function animateMirrorEnding(progress) {
             // Reset position
             camera.position.set(0, 1.6, 3);
             camera.rotation.z = 0;
+            scene.fog.density = 0.15; // Reset fog
         }
 
         // Fade back in
@@ -585,19 +615,23 @@ function animateCatEnding(progress) {
 }
 
 function animateDoorEnding(progress) {
+    const doorLeaf = door.userData.leaf;
+    const areaLight = door.userData.areaLight;
+
     // Phase 1 (0-0.4): Door slowly opens
     if (progress < 0.4) {
         const phase = progress / 0.4;
 
-        // Rotate door open
-        const doorMesh = door.children[1]; // The door itself
-        doorMesh.rotation.y = -phase * Math.PI * 0.7; // Swing open
+        // Rotate door leaf open around its hinge (left edge)
+        doorLeaf.rotation.y = -phase * Math.PI * 0.7; // Swing open
 
         // Move camera slightly forward
         camera.position.z = THREE.MathUtils.lerp(camera.position.z, -3.5, phase * 0.1);
 
-        // Door light gets brighter as it opens
-        doorLight.intensity = 1.2 + phase * 10;
+        // Area light gets brighter as door opens
+        if (areaLight) {
+            areaLight.intensity = 4.0 + phase * 10;
+        }
     }
 
     // Phase 2 (0.4-0.7): Blinding white light floods in
@@ -605,8 +639,9 @@ function animateDoorEnding(progress) {
         const phase = (progress - 0.4) / 0.3;
 
         // Increase light intensity dramatically
-        doorLight.intensity = 11.2 + phase * 50;
-        doorLight.distance = 8 + phase * 30;
+        if (areaLight) {
+            areaLight.intensity = 14.0 + phase * 50;
+        }
 
         // Fade scene to white
         const whiteAmount = phase * 255;
@@ -650,9 +685,10 @@ function animateDoorEnding(progress) {
             // Reset
             if (fadeBack > 0.5 && fadeBack < 0.55) {
                 camera.position.set(0, 1.6, 3);
-                door.children[1].rotation.y = 0;
-                doorLight.intensity = 1.2;
-                doorLight.distance = 8;
+                doorLeaf.rotation.y = 0;
+                if (areaLight) {
+                    areaLight.intensity = 4.0;
+                }
             }
 
             if (phase > 0.8) {
@@ -832,27 +868,26 @@ function animate() {
         }
         particles.geometry.attributes.position.needsUpdate = true;
 
-        // Mirror light flicker
-        mirrorLight.intensity = 0.8 + Math.sin(time * 2) * 0.1;
-
         // Cat eye glow pulse
         if (cat.visible) {
             cat.children.forEach(child => {
+                if (child instanceof THREE.PointLight) {
+                    child.intensity = 0.8 + Math.sin(time * 3) * 0.2;
+                }
                 if (child instanceof THREE.Mesh && child.material.color && child.material.color.g > 0.5) {
                     child.material.opacity = 0.9 + Math.sin(time * 3) * 0.1;
                 }
             });
         }
 
-        // Door light flicker
-        doorLight.intensity = 1.2 + Math.sin(time * 1.5) * 0.2;
+        // Subtle room breathing animation (scale pulse)
+        if (roomMesh) {
+            const breathe = 1.0 + Math.sin(time * 0.3) * 0.002;
+            roomMesh.scale.set(breathe, 1.0, breathe);
+        }
 
-        // Subtle wall breathing animation
-        scene.traverse((object) => {
-            if (object.userData.wall) {
-                object.position.z = Math.sin(time * 0.3) * 0.02;
-            }
-        });
+        // Ceiling bulb flicker
+        ceilingBulb.intensity = 0.5 + Math.sin(time * 1.2) * 0.1;
     }
 
     renderer.render(scene, camera);
