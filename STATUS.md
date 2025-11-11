@@ -6,27 +6,43 @@ All changes have been committed and pushed to: `claude/check-github-connection-0
 
 ---
 
-## 🎯 What Was Changed
+## 🎯 What Was Changed (Latest Update: v4.0)
 
-### Scene Brightness (MASSIVELY INCREASED):
-- ✅ Background: `0x0a0a0a` → `0x1a1a1a` (4x lighter)
-- ✅ Fog density: `0.15` → `0.05` (70% reduction)
-- ✅ Tone mapping exposure: `0.3` → `1.2` (4x brighter)
-- ✅ Ambient light: `0.25` → `1.2` intensity
-- ✅ Ceiling bulb: `0.5` → `3.5` intensity
-- ✅ Added 2 corner lights (2.0 intensity each)
-- ✅ Breathing light: `0.5` → `1.5` intensity
+### Scene Brightness (DAYLIGHT LEVEL):
+- ✅ Background: `0x0a0a0a` → `0x2a2a2a` (much lighter gray)
+- ✅ Fog density: `0.15` → `0.02` (minimal fog)
+- ✅ Tone mapping exposure: `0.3` → `2.0` (daylight level)
+- ✅ Ambient light: `0.25` → `2.5` intensity
+- ✅ Ceiling bulb: `0.5` → `8.0` intensity (massive increase)
+- ✅ Added 4 corner lights (3.5-4.0 intensity each, no shadows for performance)
+- ✅ Breathing light: `0.5` → `2.5` intensity
 
-### Physical Objects Added:
+### Physical Objects (REALISTIC):
 - ✅ Real reflective mirror (uses Reflector, shows actual reflections)
-- ✅ Physical door with handle, hinge, warm light leak (RectAreaLight)
-- ✅ 3D cat model (GLTF with geometric fallback)
-- ✅ Spotlights on all 3 objects
+- ✅ Bronze/gold ornate frame with emissive materials
+- ✅ Physical door with rich wood tones, gold handle, warm light leak
+- ✅ **REALISTIC CAT** with proper anatomy:
+  - Black fur material with high roughness
+  - Detailed body (horizontal capsule)
+  - Rounded head with cat proportions
+  - Two triangular ears
+  - Small rounded snout with tiny black nose
+  - Four cylindrical legs positioned correctly
+  - Five-segment curved tail
+  - **TWO green glowing eyes with vertical slit pupils** (NOT three!)
+  - Eye glow light effect
 
-### Spotlights Added:
-- ✅ Mirror spotlight: 3.0 intensity
-- ✅ Door spotlight: 2.5 intensity (warm)
-- ✅ Cat spotlight: 2.0 intensity (green)
+### Performance Optimizations (v4.0):
+- ✅ Particle count reduced: 1000 → 500 (50% reduction)
+- ✅ Pixel ratio capped at 2 for high-DPI displays
+- ✅ PowerPreference: "high-performance"
+- ✅ Corner lights don't cast shadows (performance)
+- ✅ Room breathing animation reduced: 0.002 → 0.0005 (fixes glitches)
+
+### Lighting System:
+- ✅ Mirror spotlight: 6.0 intensity + 2 point lights
+- ✅ Door spotlights: 4.0 + 3.0 intensity (warm)
+- ✅ Cat spotlight: 5.0 intensity (green) + area light
 
 ---
 
@@ -77,11 +93,11 @@ Then open: `http://localhost:8000`
 
 **After the intro, you should see:**
 - ✅ Well-lit gray room (not pitch black!)
-- ✅ Particles floating in air
+- ✅ Particles floating in air (500 particles, optimized)
 - ✅ Bright ceiling light
-- ✅ **Mirror on LEFT wall** (with visible frame)
+- ✅ **Mirror on LEFT wall** (bronze/gold frame with real reflections)
 - ✅ **Door on BACK wall** (warm light glowing from crack)
-- ✅ **Cat in corner** (3 bright green eyes appear after 3 sec)
+- ✅ **Cat in corner** (realistic black cat with 2 bright green eyes, appears after 3 sec)
 
 ---
 
@@ -96,10 +112,11 @@ Run through this checklist:
 - [ ] Clicked screen to lock cursor
 - [ ] See a GRAY room (not black!)
 - [ ] See particles floating
-- [ ] Walk left (A key) and see MIRROR on wall
-- [ ] Walk back (S key) and see DOOR with light
-- [ ] Wait 3 seconds and see CAT appear with green eyes
-- [ ] Press E near each object to trigger endings
+- [ ] Walk left (A key) and see MIRROR with bronze frame on wall
+- [ ] Walk back (S key) and see DOOR with warm light underneath
+- [ ] Wait 3 seconds and see REALISTIC CAT appear (black fur, 2 green eyes)
+- [ ] Press E near each object to trigger visual ending animations
+- [ ] Notice smooth performance (no glitches with optimized settings)
 
 ---
 
@@ -126,7 +143,12 @@ Run through this checklist:
 ### "Cat doesn't appear"
 → **NORMAL**: Cat appears 3 seconds after clicking "Wake Up"
 → **WAIT**: Stand still and wait
-→ **OR**: GLTF model is loading (fallback will render)
+→ **NOTE**: Realistic cat now renders immediately (no GLTF loading)
+
+### "Room looks glitchy or shaky"
+→ **FIXED**: Breathing animation reduced to minimal (v4.0)
+→ **TRY**: Clear cache and reload with Ctrl+Shift+R
+→ **CHECK**: Make sure you're on version ?v=4.0
 
 ---
 
@@ -134,13 +156,13 @@ Run through this checklist:
 
 ```
 /home/user/ixp1-prj3-idea2/
-├── index.html        ← Main game (updated with ?v=2.0)
-├── main.js           ← Scene with all lighting updates
-├── test.html         ← NEW: Diagnostic test file
+├── index.html        ← Main game (v=4.0 - performance optimized)
+├── main.js           ← Scene with realistic cat & optimizations
+├── test.html         ← Diagnostic test file
 ├── package.json      ← NPM scripts
 ├── README.md         ← Project info
 ├── HOW_TO_VIEW.md    ← Viewing instructions
-└── STATUS.md         ← This file
+└── STATUS.md         ← This file (updated with v4.0 info)
 ```
 
 ---
@@ -154,9 +176,9 @@ Run through this checklist:
 5. **Use WASD** to move around (slow, deliberate)
 6. **Look around** with mouse
 7. **See 3 objects:**
-   - Mirror (left) - reflective surface with frame
-   - Door (back) - warm light from bottom
-   - Cat (corner) - 3 green glowing eyes
+   - Mirror (left) - real reflections with bronze/gold frame
+   - Door (back) - warm light leaking from bottom, rich wood tones
+   - Cat (corner) - realistic black cat with 2 green glowing eyes
 8. **Walk up to any object**
 9. **Press E** when prompt appears
 10. **Watch visual ending** (no text walls!)
@@ -176,20 +198,23 @@ console.log('Should see gray, not black');
 
 ---
 
-## ✨ Everything is Updated!
+## ✨ Everything is Updated! (v4.0)
 
 - ✅ Code committed to git
 - ✅ Pushed to remote
-- ✅ Cache-busting version added (?v=2.0)
+- ✅ Cache-busting version: **?v=4.0** (LATEST)
 - ✅ Test file created for diagnostics
-- ✅ All lighting multiplied 3-7x
-- ✅ Real physical objects implemented
-- ✅ Spotlights added to all interactive elements
+- ✅ All lighting at daylight levels (2.0 exposure)
+- ✅ Real physical objects with realistic materials
+- ✅ **Realistic cat with proper anatomy** (2 eyes, not 3!)
+- ✅ Performance optimizations applied
+- ✅ Room glitches fixed (breathing animation minimized)
+- ✅ Particle count optimized (500 instead of 1000)
 
-**The code is ready. You just need to view it with a cleared cache!**
+**The code is ready. Clear your cache and view with ?v=4.0!**
 
 ---
 
-Last updated: $(date)
+Last updated: November 11, 2025
 Branch: claude/check-github-connection-011CUz61WbUxsJgcCWVhXgXs
-Commit: 8ec3c96
+Latest Commit: 5829f52 (v4.0 - Performance & Realistic Cat)
