@@ -47,8 +47,12 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 1.6, 3);
 
 // ========== RENDERER ==========
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: "high-performance" // Better performance
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap pixel ratio for performance
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -69,15 +73,13 @@ ceilingBulb.position.set(0, 4.5, 0);
 ceilingBulb.castShadow = true;
 scene.add(ceilingBulb);
 
-// Additional corner lights for even illumination
+// Additional corner lights for even illumination (no shadows for performance)
 const cornerLight1 = new THREE.PointLight(0xdddddd, 4.0, 18);
 cornerLight1.position.set(-3, 3, -3);
-cornerLight1.castShadow = true;
 scene.add(cornerLight1);
 
 const cornerLight2 = new THREE.PointLight(0xdddddd, 4.0, 18);
 cornerLight2.position.set(3, 3, 3);
-cornerLight2.castShadow = true;
 scene.add(cornerLight2);
 
 // Back corner lights
@@ -255,82 +257,124 @@ function createMirror() {
     return mirrorGroup;
 }
 
-// 2. REALISTIC CAT (with GLTF loader and sprite fallback)
+// 2. REALISTIC CAT - Detailed black cat with proper anatomy
 function createCat() {
     const catGroup = new THREE.Group();
-    const loader = new GLTFLoader();
 
-    // Try to load a GLTF cat model (with fallback to geometric cat)
-    loader.load(
-        'https://huggingface.co/datasets/opensceneassets/animals/resolve/main/cat_lowpoly.glb',
-        (gltf) => {
-            // Success: use the loaded model
-            const model = gltf.scene;
-            model.traverse(o => {
-                if (o.isMesh) {
-                    o.castShadow = true;
-                    o.receiveShadow = true;
-                }
-            });
-            model.scale.set(0.6, 0.6, 0.6);
-            catGroup.add(model);
+    // Realistic black cat material with subtle fur texture
+    const catMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a, // Dark gray-black for realistic fur
+        roughness: 0.9,
+        metalness: 0.0
+    });
 
-            // Add BRIGHT eye glow
-            const eyeGlow = new THREE.PointLight(0x00ff88, 3.0, 4.0);
-            eyeGlow.position.set(0, 0.3, 0.4);
-            catGroup.add(eyeGlow);
-        },
-        undefined,
-        (error) => {
-            // Fallback: create geometric cat if model fails to load
-            console.log('GLTF cat failed to load, using fallback geometry');
+    // BODY - elongated and cat-like
+    const bodyGeo = new THREE.CapsuleGeometry(0.15, 0.5, 8, 16);
+    const body = new THREE.Mesh(bodyGeo, catMaterial);
+    body.rotation.z = Math.PI / 2; // Horizontal
+    body.position.set(0, 0.2, 0);
+    body.castShadow = true;
+    body.receiveShadow = true;
+    catGroup.add(body);
 
-            // Cat body
-            const bodyGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.6);
-            const catMaterial = new THREE.MeshStandardMaterial({
-                color: 0x0a0a0a,
-                roughness: 0.8
-            });
-            const body = new THREE.Mesh(bodyGeometry, catMaterial);
-            body.position.y = 0.15;
-            body.castShadow = true;
-            catGroup.add(body);
+    // HEAD - rounded with proper cat proportions
+    const headGeo = new THREE.SphereGeometry(0.18, 16, 16);
+    const head = new THREE.Mesh(headGeo, catMaterial);
+    head.position.set(0, 0.25, 0.35);
+    head.scale.set(1.1, 1, 1.3); // Slightly elongated
+    head.castShadow = true;
+    catGroup.add(head);
 
-            // Cat head
-            const headGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-            const head = new THREE.Mesh(headGeometry, catMaterial);
-            head.position.set(0, 0.25, 0.35);
-            head.scale.set(1, 1, 1.2);
-            head.castShadow = true;
-            catGroup.add(head);
+    // EARS - triangular and pointy
+    const earGeo = new THREE.ConeGeometry(0.08, 0.15, 4);
+    const leftEar = new THREE.Mesh(earGeo, catMaterial);
+    leftEar.position.set(-0.12, 0.38, 0.37);
+    leftEar.rotation.z = -0.2;
+    leftEar.castShadow = true;
+    catGroup.add(leftEar);
 
-            // Three glowing eyes
-            const eyeMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00ff88,
-                transparent: true,
-                opacity: 0.9
-            });
+    const rightEar = new THREE.Mesh(earGeo, catMaterial);
+    rightEar.position.set(0.12, 0.38, 0.37);
+    rightEar.rotation.z = 0.2;
+    rightEar.castShadow = true;
+    catGroup.add(rightEar);
 
-            const eyeGeometry = new THREE.SphereGeometry(0.04, 8, 8);
+    // SNOUT - small rounded muzzle
+    const snoutGeo = new THREE.SphereGeometry(0.08, 12, 12);
+    const snout = new THREE.Mesh(snoutGeo, catMaterial);
+    snout.position.set(0, 0.2, 0.48);
+    snout.scale.set(0.8, 0.7, 1);
+    catGroup.add(snout);
 
-            const eye1 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            eye1.position.set(-0.08, 0.28, 0.45);
-            catGroup.add(eye1);
+    // NOSE - tiny black sphere
+    const noseGeo = new THREE.SphereGeometry(0.025, 8, 8);
+    const noseMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.set(0, 0.21, 0.54);
+    catGroup.add(nose);
 
-            const eye2 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            eye2.position.set(0.08, 0.28, 0.45);
-            catGroup.add(eye2);
+    // LEGS - four realistic cat legs
+    const legGeo = new THREE.CylinderGeometry(0.04, 0.035, 0.2, 8);
+    const positions = [
+        [-0.12, 0.1, 0.2],  // front left
+        [0.12, 0.1, 0.2],   // front right
+        [-0.12, 0.1, -0.18], // back left
+        [0.12, 0.1, -0.18]   // back right
+    ];
 
-            const eye3 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            eye3.position.set(0, 0.35, 0.45);
-            catGroup.add(eye3);
+    positions.forEach(pos => {
+        const leg = new THREE.Mesh(legGeo, catMaterial);
+        leg.position.set(...pos);
+        leg.castShadow = true;
+        catGroup.add(leg);
+    });
 
-            // BRIGHT eye glow light
-            const eyeLight = new THREE.PointLight(0x00ff88, 3.0, 4.0);
-            eyeLight.position.set(0, 0.3, 0.5);
-            catGroup.add(eyeLight);
-        }
-    );
+    // TAIL - curved and fluffy-looking
+    const tailSegments = 5;
+    for (let i = 0; i < tailSegments; i++) {
+        const tailGeo = new THREE.SphereGeometry(0.05 - i * 0.008, 8, 8);
+        const tailSegment = new THREE.Mesh(tailGeo, catMaterial);
+        tailSegment.position.set(
+            Math.sin(i * 0.3) * 0.08,
+            0.15 + i * 0.05,
+            -0.3 - i * 0.1
+        );
+        tailSegment.castShadow = true;
+        catGroup.add(tailSegment);
+    }
+
+    // EYES - Two realistic glowing green eyes (not three!)
+    const eyeGeo = new THREE.SphereGeometry(0.035, 12, 12);
+    const eyeMat = new THREE.MeshBasicMaterial({
+        color: 0x00ff66, // Bright green cat eyes
+        transparent: true,
+        opacity: 0.95
+    });
+
+    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    leftEye.position.set(-0.08, 0.28, 0.44);
+    catGroup.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    rightEye.position.set(0.08, 0.28, 0.44);
+    catGroup.add(rightEye);
+
+    // PUPILS - Vertical slits for realism
+    const pupilGeo = new THREE.PlaneGeometry(0.012, 0.03);
+    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+    const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
+    leftPupil.position.set(-0.08, 0.28, 0.445);
+    catGroup.add(leftPupil);
+
+    const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
+    rightPupil.position.set(0.08, 0.28, 0.445);
+    catGroup.add(rightPupil);
+
+    // Eye glow light
+    const eyeLight = new THREE.PointLight(0x00ff66, 3.5, 4.0);
+    eyeLight.position.set(0, 0.3, 0.5);
+    catGroup.add(eyeLight);
 
     // Position in corner (appears after a few seconds)
     catGroup.position.set(3.2, 0, 3.2);
@@ -459,7 +503,7 @@ function createDoor() {
 
 // ========== PARTICLES ==========
 function createParticles() {
-    const particleCount = 1000;
+    const particleCount = 500; // Reduced for better performance
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
 
@@ -985,9 +1029,9 @@ function animate() {
             });
         }
 
-        // Subtle room breathing animation (scale pulse)
+        // Subtle room breathing animation (scale pulse) - reduced to prevent glitches
         if (roomMesh) {
-            const breathe = 1.0 + Math.sin(time * 0.3) * 0.002;
+            const breathe = 1.0 + Math.sin(time * 0.3) * 0.0005; // Much subtler
             roomMesh.scale.set(breathe, 1.0, breathe);
         }
 
