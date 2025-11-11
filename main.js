@@ -31,8 +31,8 @@ const direction = new THREE.Vector3();
 
 // ========== SCENE SETUP ==========
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a1a); // Lighter background
-scene.fog = new THREE.FogExp2(0x1a1a1a, 0.05); // Much less fog for visibility
+scene.background = new THREE.Color(0x2a2a2a); // Much lighter gray background
+scene.fog = new THREE.FogExp2(0x2a2a2a, 0.02); // Very minimal fog for depth
 
 // Initialize RectAreaLight uniforms for the door light
 RectAreaLightUniformsLib.init();
@@ -52,34 +52,45 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2; // Much brighter exposure
+renderer.toneMappingExposure = 2.0; // Daylight level exposure
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 // ========== CONTROLS ==========
 const controls = new PointerLockControls(camera, renderer.domElement);
 
 // ========== LIGHTING ==========
-// Increased ambient light for visibility
-const ambientLight = new THREE.AmbientLight(0x404040, 1.2);
+// DAYLIGHT LEVEL LIGHTING - Everything is now clearly visible
+const ambientLight = new THREE.AmbientLight(0x606060, 2.5);
 scene.add(ambientLight);
 
-// Bright ceiling bulb
-const ceilingBulb = new THREE.PointLight(0xdddddd, 3.5, 20);
+// Very bright ceiling bulb (main light source)
+const ceilingBulb = new THREE.PointLight(0xffffff, 8.0, 25);
 ceilingBulb.position.set(0, 4.5, 0);
 ceilingBulb.castShadow = true;
 scene.add(ceilingBulb);
 
-// Additional room lights for better visibility
-const cornerLight1 = new THREE.PointLight(0xaaaaaa, 2.0, 15);
+// Additional corner lights for even illumination
+const cornerLight1 = new THREE.PointLight(0xdddddd, 4.0, 18);
 cornerLight1.position.set(-3, 3, -3);
+cornerLight1.castShadow = true;
 scene.add(cornerLight1);
 
-const cornerLight2 = new THREE.PointLight(0xaaaaaa, 2.0, 15);
+const cornerLight2 = new THREE.PointLight(0xdddddd, 4.0, 18);
 cornerLight2.position.set(3, 3, 3);
+cornerLight2.castShadow = true;
 scene.add(cornerLight2);
 
-// Breathing light that follows player (brighter)
-const breathingLight = new THREE.PointLight(0x888888, 1.5, 15);
+// Back corner lights
+const cornerLight3 = new THREE.PointLight(0xdddddd, 3.5, 15);
+cornerLight3.position.set(-3, 3, 3);
+scene.add(cornerLight3);
+
+const cornerLight4 = new THREE.PointLight(0xdddddd, 3.5, 15);
+cornerLight4.position.set(3, 3, -3);
+scene.add(cornerLight4);
+
+// Breathing light that follows player
+const breathingLight = new THREE.PointLight(0xaaaaaa, 2.5, 18);
 breathingLight.position.copy(camera.position);
 scene.add(breathingLight);
 
@@ -90,16 +101,14 @@ function createRoom() {
     const roomSize = 10;
     const wallHeight = 5;
 
-    // Load textures for floor (optional - using simple colors as fallback)
-    const loader = new THREE.TextureLoader();
-
     // Room as a box with inward-facing normals (real enclosed space)
     const roomGeo = new THREE.BoxGeometry(roomSize, wallHeight, roomSize);
     roomGeo.scale(-1, 1, 1); // flip normals inward so we see inside
 
+    // Lighter walls for better visibility
     const wallMat = new THREE.MeshStandardMaterial({
-        color: 0x1a1a1a,
-        roughness: 0.9,
+        color: 0x3a3a3a, // Much lighter gray walls
+        roughness: 0.85,
         metalness: 0.05,
         side: THREE.FrontSide
     });
@@ -107,38 +116,79 @@ function createRoom() {
     roomMesh = new THREE.Mesh(roomGeo, wallMat);
     roomMesh.position.y = wallHeight / 2;
     roomMesh.receiveShadow = true;
-    roomMesh.userData.wall = true; // Tag for breathing effect
+    roomMesh.userData.wall = true;
     scene.add(roomMesh);
 
-    // Physical floor plane (darker, receives shadows nicely)
+    // Floor - lighter with visible texture
     const floorGeo = new THREE.PlaneGeometry(roomSize, roomSize);
     const floorMat = new THREE.MeshStandardMaterial({
-        color: 0x141414,
-        roughness: 0.95,
+        color: 0x2a2a2a, // Lighter floor
+        roughness: 0.9,
         metalness: 0.0
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
+
+    // Add ceiling with slight color variation
+    const ceilingGeo = new THREE.PlaneGeometry(roomSize, roomSize);
+    const ceilingMat = new THREE.MeshStandardMaterial({
+        color: 0x404040, // Lighter ceiling
+        roughness: 0.9,
+        metalness: 0.0
+    });
+    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = wallHeight;
+    ceiling.receiveShadow = true;
+    scene.add(ceiling);
+
+    // Add baseboard trim around room for realism
+    const baseboardHeight = 0.15;
+    const baseboardMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a, // Darker baseboard
+        roughness: 0.7,
+        metalness: 0.1
+    });
+
+    // Baseboards on each wall
+    const baseboards = [
+        { pos: [0, baseboardHeight/2, -roomSize/2], rot: [0, 0, 0] }, // back
+        { pos: [0, baseboardHeight/2, roomSize/2], rot: [0, Math.PI, 0] }, // front
+        { pos: [-roomSize/2, baseboardHeight/2, 0], rot: [0, Math.PI/2, 0] }, // left
+        { pos: [roomSize/2, baseboardHeight/2, 0], rot: [0, -Math.PI/2, 0] } // right
+    ];
+
+    baseboards.forEach(data => {
+        const baseboardGeo = new THREE.BoxGeometry(roomSize, baseboardHeight, 0.1);
+        const baseboard = new THREE.Mesh(baseboardGeo, baseboardMat);
+        baseboard.position.set(...data.pos);
+        baseboard.rotation.y = data.rot[1];
+        baseboard.castShadow = true;
+        baseboard.receiveShadow = true;
+        scene.add(baseboard);
+    });
 }
 
 // ========== INTERACTIVE OBJECTS ==========
 const interactables = [];
 
-// 1. REAL REFLECTIVE MIRROR
+// 1. REAL REFLECTIVE MIRROR - Enhanced and more visible
 function createMirror() {
     const mirrorGroup = new THREE.Group();
 
-    // Ornate frame using beveled boxes
+    // Ornate gold/bronze frame
     const frame = new THREE.Group();
-    const frameDepth = 0.08;
-    const frameW = 2.4, frameH = 2.9, frameT = 0.15;
+    const frameDepth = 0.12;
+    const frameW = 2.4, frameH = 2.9, frameT = 0.2;
 
     const frameMat = new THREE.MeshStandardMaterial({
-        color: 0x2b2b2b,
-        roughness: 0.4,
-        metalness: 0.6
+        color: 0x8B7355, // Bronze/gold color
+        roughness: 0.3,
+        metalness: 0.8,
+        emissive: 0x3a2a1a,
+        emissiveIntensity: 0.2
     });
 
     const horiz = new THREE.BoxGeometry(frameW, frameT, frameDepth);
@@ -146,12 +196,16 @@ function createMirror() {
 
     const top = new THREE.Mesh(horiz, frameMat);
     top.position.y = frameH / 2;
+    top.castShadow = true;
     const bot = new THREE.Mesh(horiz, frameMat);
     bot.position.y = -frameH / 2;
+    bot.castShadow = true;
     const lef = new THREE.Mesh(vert, frameMat);
     lef.position.x = -frameW / 2;
+    lef.castShadow = true;
     const rig = new THREE.Mesh(vert, frameMat);
     rig.position.x = frameW / 2;
+    rig.castShadow = true;
 
     frame.add(top, bot, lef, rig);
 
@@ -160,7 +214,7 @@ function createMirror() {
         clipBias: 0.003,
         textureWidth: window.innerWidth * window.devicePixelRatio,
         textureHeight: window.innerHeight * window.devicePixelRatio,
-        color: 0x888888
+        color: 0xcccccc // Brighter reflection
     });
     mirrorSurface.position.z = 0.001;
 
@@ -173,18 +227,22 @@ function createMirror() {
     mirrorGroup.add(panel);
     scene.add(mirrorGroup);
 
-    // Bright spotlight on mirror for visibility
-    const mirrorSpotlight = new THREE.SpotLight(0xffffff, 3.0, 10, Math.PI / 6);
+    // Very bright spotlight on mirror
+    const mirrorSpotlight = new THREE.SpotLight(0xffffff, 6.0, 12, Math.PI / 6);
     mirrorSpotlight.position.set(-3, 3, 0);
     mirrorSpotlight.target.position.set(-4.9, 2.4, 0);
     mirrorSpotlight.castShadow = true;
     scene.add(mirrorSpotlight);
     scene.add(mirrorSpotlight.target);
 
-    // Additional point light for reflections
-    const mirrorLight = new THREE.PointLight(0xaaaaaa, 2.0, 10);
-    mirrorLight.position.set(-4.2, 2.2, 0.8);
-    scene.add(mirrorLight);
+    // Additional point lights for even illumination
+    const mirrorLight1 = new THREE.PointLight(0xffffff, 3.0, 10);
+    mirrorLight1.position.set(-4.2, 2.2, 0.8);
+    scene.add(mirrorLight1);
+
+    const mirrorLight2 = new THREE.PointLight(0xffffff, 2.5, 8);
+    mirrorLight2.position.set(-4.2, 2.6, -0.8);
+    scene.add(mirrorLight2);
 
     interactables.push({
         object: mirrorGroup,
@@ -279,12 +337,18 @@ function createCat() {
     catGroup.visible = false;
     scene.add(catGroup);
 
-    // Spotlight on cat for visibility (always on, even when cat is hidden initially)
-    const catSpotlight = new THREE.SpotLight(0x00ff88, 2.0, 8, Math.PI / 8);
+    // Very bright spotlight on cat for visibility
+    const catSpotlight = new THREE.SpotLight(0x00ff88, 5.0, 10, Math.PI / 8);
     catSpotlight.position.set(3.2, 3, 3.2);
     catSpotlight.target.position.set(3.2, 0, 3.2);
+    catSpotlight.castShadow = true;
     scene.add(catSpotlight);
     scene.add(catSpotlight.target);
+
+    // Additional point light for cat area
+    const catAreaLight = new THREE.PointLight(0x00ff88, 3.0, 8);
+    catAreaLight.position.set(3.2, 2, 3.2);
+    scene.add(catAreaLight);
 
     interactables.push({
         object: catGroup,
@@ -297,79 +361,89 @@ function createCat() {
     return catGroup;
 }
 
-// 3. REAL PHYSICAL DOOR (with thickness, handle, hinge, light leak)
+// 3. REAL PHYSICAL DOOR - Enhanced with rich wood tones
 function createDoor() {
     const doorGroup = new THREE.Group();
 
-    // Door frame opening in the wall
+    // Door frame - dark wood
     const frameMat = new THREE.MeshStandardMaterial({
-        color: 0x303030,
-        roughness: 0.8
-    });
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.6, 0.25), frameMat);
-    frame.receiveShadow = true;
-    doorGroup.add(frame);
-
-    // Door leaf (pivot on left edge for opening animation)
-    const leafGeo = new THREE.BoxGeometry(1.4, 2.4, 0.08);
-    const leafMat = new THREE.MeshStandardMaterial({
-        color: 0x1a1a1a,
+        color: 0x4a3520, // Rich dark wood
         roughness: 0.7,
         metalness: 0.1
     });
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.6, 0.25), frameMat);
+    frame.receiveShadow = true;
+    frame.castShadow = true;
+    doorGroup.add(frame);
+
+    // Door leaf - warm wood color
+    const leafGeo = new THREE.BoxGeometry(1.4, 2.4, 0.08);
+    const leafMat = new THREE.MeshStandardMaterial({
+        color: 0x6B4423, // Warm brown wood
+        roughness: 0.6,
+        metalness: 0.05,
+        emissive: 0x2a1810,
+        emissiveIntensity: 0.1
+    });
     const leaf = new THREE.Mesh(leafGeo, leafMat);
-    leaf.position.x = -0.7 + 0.04; // Offset to hinge at left edge
+    leaf.position.x = -0.7 + 0.04;
     leaf.castShadow = true;
     leaf.receiveShadow = true;
     doorGroup.add(leaf);
 
-    // Store reference to leaf for opening animation
     doorGroup.userData.leaf = leaf;
 
-    // Door handle (cylindrical, metallic)
-    const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.15, 16);
+    // Gold/brass handle
+    const handleGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.18, 16);
     const handleMat = new THREE.MeshStandardMaterial({
-        color: 0xaaaaaa,
-        roughness: 0.3,
-        metalness: 0.8
+        color: 0xFFD700, // Gold
+        roughness: 0.2,
+        metalness: 0.9,
+        emissive: 0x3a2a00,
+        emissiveIntensity: 0.3
     });
     const handle = new THREE.Mesh(handleGeo, handleMat);
     handle.rotation.z = Math.PI / 2;
-    handle.position.set(0.45, -0.1, 0.06);
+    handle.position.set(0.45, 0, 0.06);
     handle.castShadow = true;
     leaf.add(handle);
 
-    // Thin light crack under door
+    // Bright light crack under door
     const crack = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.2, 0.03),
+        new THREE.PlaneGeometry(1.3, 0.05),
         new THREE.MeshBasicMaterial({
-            color: 0xffe4b5,
+            color: 0xFFE4B5,
             transparent: true,
-            opacity: 0.9
+            opacity: 1.0
         })
     );
-    crack.position.set(0, -1.15, 0.05);
+    crack.position.set(0, -1.15, 0.06);
     leaf.add(crack);
 
     // Position door in back wall
     doorGroup.position.set(0, 1.3, -4.9);
     scene.add(doorGroup);
 
-    // RectAreaLight behind the door (creates realistic light leak) - BRIGHTER
-    const areaLight = new THREE.RectAreaLight(0xffe4b5, 8.0, 1.5, 2.5);
+    // Very bright RectAreaLight behind door
+    const areaLight = new THREE.RectAreaLight(0xFFE4B5, 12.0, 1.8, 2.8);
     areaLight.position.set(0, 1.2, -5.1);
     areaLight.lookAt(0, 1.2, -4.9);
     scene.add(areaLight);
 
-    // Spotlight on door for visibility
-    const doorSpotlight = new THREE.SpotLight(0xffe4b5, 2.5, 10, Math.PI / 6);
-    doorSpotlight.position.set(0, 3, -3);
-    doorSpotlight.target.position.set(0, 1.3, -4.9);
-    doorSpotlight.castShadow = true;
-    scene.add(doorSpotlight);
-    scene.add(doorSpotlight.target);
+    // Multiple spotlights for dramatic lighting
+    const doorSpotlight1 = new THREE.SpotLight(0xFFE4B5, 4.0, 12, Math.PI / 6);
+    doorSpotlight1.position.set(0, 3.5, -3);
+    doorSpotlight1.target.position.set(0, 1.3, -4.9);
+    doorSpotlight1.castShadow = true;
+    scene.add(doorSpotlight1);
+    scene.add(doorSpotlight1.target);
 
-    // Store reference for ending animation
+    const doorSpotlight2 = new THREE.SpotLight(0xFFE4B5, 3.0, 10, Math.PI / 8);
+    doorSpotlight2.position.set(0, 0.5, -3);
+    doorSpotlight2.target.position.set(0, 0, -4.9);
+    scene.add(doorSpotlight2);
+    scene.add(doorSpotlight2.target);
+
     doorGroup.userData.areaLight = areaLight;
 
     interactables.push({
@@ -507,7 +581,7 @@ function animateMirrorEnding(progress) {
         // Make the mirror glow and distort the view
 
         // Increase fog density for distortion effect
-        scene.fog.density = 0.05 + phase * 0.15;
+        scene.fog.density = 0.02 + phase * 0.15;
 
         // Camera slight rotation for disorientation
         camera.rotation.z = Math.sin(progress * 30) * 0.02 * phase;
@@ -522,11 +596,11 @@ function animateMirrorEnding(progress) {
 
         // Fade to black
         scene.background = new THREE.Color(
-            Math.floor(0x1a * (1 - phase)),
-            Math.floor(0x1a * (1 - phase)),
-            Math.floor(0x1a * (1 - phase))
+            Math.floor(0x2a * (1 - phase)),
+            Math.floor(0x2a * (1 - phase)),
+            Math.floor(0x2a * (1 - phase))
         );
-        renderer.toneMappingExposure = 1.2 * (1 - phase);
+        renderer.toneMappingExposure = 2.0 * (1 - phase);
     }
 
     // Phase 3 (0.6-1.0): Respawn in same room
@@ -537,17 +611,17 @@ function animateMirrorEnding(progress) {
             // Reset position
             camera.position.set(0, 1.6, 3);
             camera.rotation.z = 0;
-            scene.fog.density = 0.05; // Reset fog to new lighter value
+            scene.fog.density = 0.02; // Reset fog to new lighter value
         }
 
         // Fade back in
         const fadeIn = Math.min(phase * 2, 1);
         scene.background = new THREE.Color(
-            Math.floor(0x1a * fadeIn),
-            Math.floor(0x1a * fadeIn),
-            Math.floor(0x1a * fadeIn)
+            Math.floor(0x2a * fadeIn),
+            Math.floor(0x2a * fadeIn),
+            Math.floor(0x2a * fadeIn)
         );
-        renderer.toneMappingExposure = 1.2 * fadeIn;
+        renderer.toneMappingExposure = 2.0 * fadeIn;
 
         // Show questioning text at the end
         if (phase > 0.8) {
@@ -618,7 +692,7 @@ function animateCatEnding(progress) {
             // Fade to black
             const fadeOut = phase / 0.3;
             scene.background = new THREE.Color(0, 0, 0);
-            renderer.toneMappingExposure = 1.2 * (1 - fadeOut);
+            renderer.toneMappingExposure = 2.0 * (1 - fadeOut);
             camera.rotation.set(0, 0, 0);
         } else {
             // Reset and fade back in
@@ -632,11 +706,11 @@ function animateCatEnding(progress) {
 
             const fadeIn = (phase - 0.3) / 0.7;
             scene.background = new THREE.Color(
-                Math.floor(0x1a * fadeIn),
-                Math.floor(0x1a * fadeIn),
-                Math.floor(0x1a * fadeIn)
+                Math.floor(0x2a * fadeIn),
+                Math.floor(0x2a * fadeIn),
+                Math.floor(0x2a * fadeIn)
             );
-            renderer.toneMappingExposure = 1.2 * fadeIn;
+            renderer.toneMappingExposure = 2.0 * fadeIn;
 
             if (phase > 0.8) {
                 showSubtleQuestion("Did I... wake up?");
@@ -661,7 +735,7 @@ function animateDoorEnding(progress) {
 
         // Area light gets brighter as door opens
         if (areaLight) {
-            areaLight.intensity = 4.0 + phase * 10;
+            areaLight.intensity = 12.0 + phase * 15;
         }
     }
 
@@ -671,7 +745,7 @@ function animateDoorEnding(progress) {
 
         // Increase light intensity dramatically
         if (areaLight) {
-            areaLight.intensity = 14.0 + phase * 50;
+            areaLight.intensity = 27.0 + phase * 60;
         }
 
         // Fade scene to white
@@ -683,13 +757,13 @@ function animateDoorEnding(progress) {
         );
 
         // Increase exposure
-        renderer.toneMappingExposure = 1.2 + phase * 3;
+        renderer.toneMappingExposure = 2.0 + phase * 3;
 
         // Everything fades to white
         scene.fog.color = new THREE.Color(
-            Math.floor(0x1a + whiteAmount),
-            Math.floor(0x1a + whiteAmount),
-            Math.floor(0x1a + whiteAmount)
+            Math.floor(0x2a + whiteAmount),
+            Math.floor(0x2a + whiteAmount),
+            Math.floor(0x2a + whiteAmount)
         );
     }
 
@@ -710,15 +784,15 @@ function animateDoorEnding(progress) {
                 Math.floor(0xff * darkness),
                 Math.floor(0xff * darkness)
             );
-            renderer.toneMappingExposure = 3 * darkness + 1.2 * fadeBack;
-            scene.fog.color = new THREE.Color(0x1a1a1a);
+            renderer.toneMappingExposure = 3 * darkness + 2.0 * fadeBack;
+            scene.fog.color = new THREE.Color(0x2a2a2a);
 
             // Reset
             if (fadeBack > 0.5 && fadeBack < 0.55) {
                 camera.position.set(0, 1.6, 3);
                 doorLeaf.rotation.y = 0;
                 if (areaLight) {
-                    areaLight.intensity = 8.0; // Reset to new brighter value
+                    areaLight.intensity = 12.0; // Reset to new brighter value
                 }
             }
 
@@ -887,8 +961,8 @@ function animate() {
         updateMovement(delta);
         checkInteractions();
 
-        // Breathing light effect (brighter)
-        breathingLight.intensity = 1.5 + Math.sin(time * 0.5) * 0.3;
+        // Breathing light effect
+        breathingLight.intensity = 2.5 + Math.sin(time * 0.5) * 0.5;
         breathingLight.position.copy(camera.position);
 
         // Animate particles
@@ -917,8 +991,8 @@ function animate() {
             roomMesh.scale.set(breathe, 1.0, breathe);
         }
 
-        // Ceiling bulb flicker (keep bright)
-        ceilingBulb.intensity = 3.5 + Math.sin(time * 1.2) * 0.3;
+        // Ceiling bulb flicker
+        ceilingBulb.intensity = 8.0 + Math.sin(time * 1.2) * 0.5;
     }
 
     renderer.render(scene, camera);
