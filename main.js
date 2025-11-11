@@ -31,8 +31,8 @@ const direction = new THREE.Vector3();
 
 // ========== SCENE SETUP ==========
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0a0a);
-scene.fog = new THREE.FogExp2(0x0b0b0b, 0.15);
+scene.background = new THREE.Color(0x1a1a1a); // Lighter background
+scene.fog = new THREE.FogExp2(0x1a1a1a, 0.05); // Much less fog for visibility
 
 // Initialize RectAreaLight uniforms for the door light
 RectAreaLightUniformsLib.init();
@@ -52,25 +52,34 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.3;
+renderer.toneMappingExposure = 1.2; // Much brighter exposure
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 // ========== CONTROLS ==========
 const controls = new PointerLockControls(camera, renderer.domElement);
 
 // ========== LIGHTING ==========
-// Low ambient light for horror atmosphere
-const ambientLight = new THREE.AmbientLight(0x101010, 0.25);
+// Increased ambient light for visibility
+const ambientLight = new THREE.AmbientLight(0x404040, 1.2);
 scene.add(ambientLight);
 
-// Ceiling bulb to ground the scene
-const ceilingBulb = new THREE.PointLight(0x777777, 0.5, 12);
-ceilingBulb.position.set(0, 4.2, 0);
+// Bright ceiling bulb
+const ceilingBulb = new THREE.PointLight(0xdddddd, 3.5, 20);
+ceilingBulb.position.set(0, 4.5, 0);
 ceilingBulb.castShadow = true;
 scene.add(ceilingBulb);
 
-// Subtle breathing light that follows player
-const breathingLight = new THREE.PointLight(0x444444, 0.5, 15);
+// Additional room lights for better visibility
+const cornerLight1 = new THREE.PointLight(0xaaaaaa, 2.0, 15);
+cornerLight1.position.set(-3, 3, -3);
+scene.add(cornerLight1);
+
+const cornerLight2 = new THREE.PointLight(0xaaaaaa, 2.0, 15);
+cornerLight2.position.set(3, 3, 3);
+scene.add(cornerLight2);
+
+// Breathing light that follows player (brighter)
+const breathingLight = new THREE.PointLight(0x888888, 1.5, 15);
 breathingLight.position.copy(camera.position);
 scene.add(breathingLight);
 
@@ -164,11 +173,18 @@ function createMirror() {
     mirrorGroup.add(panel);
     scene.add(mirrorGroup);
 
-    // Local light to enhance reflections
-    const light = new THREE.PointLight(0x888888, 0.8, 8);
-    light.position.set(-4.2, 2.2, 0.8);
-    light.castShadow = true;
-    scene.add(light);
+    // Bright spotlight on mirror for visibility
+    const mirrorSpotlight = new THREE.SpotLight(0xffffff, 3.0, 10, Math.PI / 6);
+    mirrorSpotlight.position.set(-3, 3, 0);
+    mirrorSpotlight.target.position.set(-4.9, 2.4, 0);
+    mirrorSpotlight.castShadow = true;
+    scene.add(mirrorSpotlight);
+    scene.add(mirrorSpotlight.target);
+
+    // Additional point light for reflections
+    const mirrorLight = new THREE.PointLight(0xaaaaaa, 2.0, 10);
+    mirrorLight.position.set(-4.2, 2.2, 0.8);
+    scene.add(mirrorLight);
 
     interactables.push({
         object: mirrorGroup,
@@ -201,8 +217,8 @@ function createCat() {
             model.scale.set(0.6, 0.6, 0.6);
             catGroup.add(model);
 
-            // Add eye glow
-            const eyeGlow = new THREE.PointLight(0x00ff88, 0.8, 2.5);
+            // Add BRIGHT eye glow
+            const eyeGlow = new THREE.PointLight(0x00ff88, 3.0, 4.0);
             eyeGlow.position.set(0, 0.3, 0.4);
             catGroup.add(eyeGlow);
         },
@@ -251,8 +267,8 @@ function createCat() {
             eye3.position.set(0, 0.35, 0.45);
             catGroup.add(eye3);
 
-            // Eye glow light
-            const eyeLight = new THREE.PointLight(0x00ff88, 0.5, 3);
+            // BRIGHT eye glow light
+            const eyeLight = new THREE.PointLight(0x00ff88, 3.0, 4.0);
             eyeLight.position.set(0, 0.3, 0.5);
             catGroup.add(eyeLight);
         }
@@ -262,6 +278,13 @@ function createCat() {
     catGroup.position.set(3.2, 0, 3.2);
     catGroup.visible = false;
     scene.add(catGroup);
+
+    // Spotlight on cat for visibility (always on, even when cat is hidden initially)
+    const catSpotlight = new THREE.SpotLight(0x00ff88, 2.0, 8, Math.PI / 8);
+    catSpotlight.position.set(3.2, 3, 3.2);
+    catSpotlight.target.position.set(3.2, 0, 3.2);
+    scene.add(catSpotlight);
+    scene.add(catSpotlight.target);
 
     interactables.push({
         object: catGroup,
@@ -332,11 +355,19 @@ function createDoor() {
     doorGroup.position.set(0, 1.3, -4.9);
     scene.add(doorGroup);
 
-    // RectAreaLight behind the door (creates realistic light leak)
-    const areaLight = new THREE.RectAreaLight(0xffe4b5, 4.0, 1.2, 2.0);
+    // RectAreaLight behind the door (creates realistic light leak) - BRIGHTER
+    const areaLight = new THREE.RectAreaLight(0xffe4b5, 8.0, 1.5, 2.5);
     areaLight.position.set(0, 1.2, -5.1);
     areaLight.lookAt(0, 1.2, -4.9);
     scene.add(areaLight);
+
+    // Spotlight on door for visibility
+    const doorSpotlight = new THREE.SpotLight(0xffe4b5, 2.5, 10, Math.PI / 6);
+    doorSpotlight.position.set(0, 3, -3);
+    doorSpotlight.target.position.set(0, 1.3, -4.9);
+    doorSpotlight.castShadow = true;
+    scene.add(doorSpotlight);
+    scene.add(doorSpotlight.target);
 
     // Store reference for ending animation
     doorGroup.userData.areaLight = areaLight;
@@ -476,7 +507,7 @@ function animateMirrorEnding(progress) {
         // Make the mirror glow and distort the view
 
         // Increase fog density for distortion effect
-        scene.fog.density = 0.15 + phase * 0.1;
+        scene.fog.density = 0.05 + phase * 0.15;
 
         // Camera slight rotation for disorientation
         camera.rotation.z = Math.sin(progress * 30) * 0.02 * phase;
@@ -491,11 +522,11 @@ function animateMirrorEnding(progress) {
 
         // Fade to black
         scene.background = new THREE.Color(
-            Math.floor(0x0a * (1 - phase)),
-            Math.floor(0x0a * (1 - phase)),
-            Math.floor(0x0a * (1 - phase))
+            Math.floor(0x1a * (1 - phase)),
+            Math.floor(0x1a * (1 - phase)),
+            Math.floor(0x1a * (1 - phase))
         );
-        renderer.toneMappingExposure = 0.3 * (1 - phase);
+        renderer.toneMappingExposure = 1.2 * (1 - phase);
     }
 
     // Phase 3 (0.6-1.0): Respawn in same room
@@ -506,17 +537,17 @@ function animateMirrorEnding(progress) {
             // Reset position
             camera.position.set(0, 1.6, 3);
             camera.rotation.z = 0;
-            scene.fog.density = 0.15; // Reset fog
+            scene.fog.density = 0.05; // Reset fog to new lighter value
         }
 
         // Fade back in
         const fadeIn = Math.min(phase * 2, 1);
         scene.background = new THREE.Color(
-            Math.floor(0x0a * fadeIn),
-            Math.floor(0x0a * fadeIn),
-            Math.floor(0x0a * fadeIn)
+            Math.floor(0x1a * fadeIn),
+            Math.floor(0x1a * fadeIn),
+            Math.floor(0x1a * fadeIn)
         );
-        renderer.toneMappingExposure = 0.3 * fadeIn;
+        renderer.toneMappingExposure = 1.2 * fadeIn;
 
         // Show questioning text at the end
         if (phase > 0.8) {
@@ -587,25 +618,25 @@ function animateCatEnding(progress) {
             // Fade to black
             const fadeOut = phase / 0.3;
             scene.background = new THREE.Color(0, 0, 0);
-            renderer.toneMappingExposure = 0.3 * (1 - fadeOut);
+            renderer.toneMappingExposure = 1.2 * (1 - fadeOut);
             camera.rotation.set(0, 0, 0);
         } else {
             // Reset and fade back in
             if (phase < 0.35) {
                 camera.position.set(0, 1.6, 3);
                 camera.rotation.set(0, 0, 0);
-                cat.position.set(3.5, 0, 3.5);
+                cat.position.set(3.2, 0, 3.2);
                 cat.scale.setScalar(1);
                 cat.visible = true;
             }
 
             const fadeIn = (phase - 0.3) / 0.7;
             scene.background = new THREE.Color(
-                Math.floor(0x0a * fadeIn),
-                Math.floor(0x0a * fadeIn),
-                Math.floor(0x0a * fadeIn)
+                Math.floor(0x1a * fadeIn),
+                Math.floor(0x1a * fadeIn),
+                Math.floor(0x1a * fadeIn)
             );
-            renderer.toneMappingExposure = 0.3 * fadeIn;
+            renderer.toneMappingExposure = 1.2 * fadeIn;
 
             if (phase > 0.8) {
                 showSubtleQuestion("Did I... wake up?");
@@ -652,13 +683,13 @@ function animateDoorEnding(progress) {
         );
 
         // Increase exposure
-        renderer.toneMappingExposure = 0.3 + phase * 3;
+        renderer.toneMappingExposure = 1.2 + phase * 3;
 
         // Everything fades to white
         scene.fog.color = new THREE.Color(
-            Math.floor(0x0b + whiteAmount),
-            Math.floor(0x0b + whiteAmount),
-            Math.floor(0x0b + whiteAmount)
+            Math.floor(0x1a + whiteAmount),
+            Math.floor(0x1a + whiteAmount),
+            Math.floor(0x1a + whiteAmount)
         );
     }
 
@@ -679,15 +710,15 @@ function animateDoorEnding(progress) {
                 Math.floor(0xff * darkness),
                 Math.floor(0xff * darkness)
             );
-            renderer.toneMappingExposure = 3 * darkness + 0.3 * fadeBack;
-            scene.fog.color = new THREE.Color(0x0b0b0b);
+            renderer.toneMappingExposure = 3 * darkness + 1.2 * fadeBack;
+            scene.fog.color = new THREE.Color(0x1a1a1a);
 
             // Reset
             if (fadeBack > 0.5 && fadeBack < 0.55) {
                 camera.position.set(0, 1.6, 3);
                 doorLeaf.rotation.y = 0;
                 if (areaLight) {
-                    areaLight.intensity = 4.0;
+                    areaLight.intensity = 8.0; // Reset to new brighter value
                 }
             }
 
@@ -856,8 +887,8 @@ function animate() {
         updateMovement(delta);
         checkInteractions();
 
-        // Breathing light effect
-        breathingLight.intensity = 0.5 + Math.sin(time * 0.5) * 0.2;
+        // Breathing light effect (brighter)
+        breathingLight.intensity = 1.5 + Math.sin(time * 0.5) * 0.3;
         breathingLight.position.copy(camera.position);
 
         // Animate particles
@@ -868,11 +899,11 @@ function animate() {
         }
         particles.geometry.attributes.position.needsUpdate = true;
 
-        // Cat eye glow pulse
+        // Cat eye glow pulse (brighter)
         if (cat.visible) {
             cat.children.forEach(child => {
                 if (child instanceof THREE.PointLight) {
-                    child.intensity = 0.8 + Math.sin(time * 3) * 0.2;
+                    child.intensity = 3.0 + Math.sin(time * 3) * 0.5;
                 }
                 if (child instanceof THREE.Mesh && child.material.color && child.material.color.g > 0.5) {
                     child.material.opacity = 0.9 + Math.sin(time * 3) * 0.1;
@@ -886,8 +917,8 @@ function animate() {
             roomMesh.scale.set(breathe, 1.0, breathe);
         }
 
-        // Ceiling bulb flicker
-        ceilingBulb.intensity = 0.5 + Math.sin(time * 1.2) * 0.1;
+        // Ceiling bulb flicker (keep bright)
+        ceilingBulb.intensity = 3.5 + Math.sin(time * 1.2) * 0.3;
     }
 
     renderer.render(scene, camera);
